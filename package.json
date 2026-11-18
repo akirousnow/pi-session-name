@@ -1,0 +1,55 @@
+{
+  "name": "@akirousnow/pi-session-name",
+  "version": "0.1.0",
+  "description": "Pi extension that uses TypeSafe Jev to decide when to refresh session titles.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "session-title",
+    "session-name",
+    "jev",
+    "classifier"
+  ],
+  "files": [
+    "extensions/",
+    "!extensions/**/*.test.ts",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:unit": "tsx extensions/session-name/config.test.ts && tsx extensions/session-name/classifier.test.ts && tsx extensions/session-name/state.test.ts && tsx extensions/session-name/transcript.test.ts && tsx extensions/session-name/title.test.ts",
+    "test": "npm run typecheck && npm run test:unit"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/session-name/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^1.5.2",
+    "@earendil-works/pi-coding-agent": "^1.5.2",
+    "@types/node": "^25.7.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
