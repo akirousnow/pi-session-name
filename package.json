@@ -51,5 +51,13 @@
   },
   "engines": {
     "node": ">=22.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akirousnow/pi-session-name.git"
+  },
+  "homepage": "https://github.com/akirousnow/pi-session-name#readme",
+  "bugs": {
+    "url": "https://github.com/akirousnow/pi-session-name/issues"
   }
 }

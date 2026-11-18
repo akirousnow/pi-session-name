@@ -21,6 +21,18 @@ It also gives an untitled session its first title after the first settled run. T
 
 ## Install
 
+From GitHub:
+
+```sh
+pi install git:github.com/akirousnow/pi-session-name
+```
+
+Pin the current release:
+
+```sh
+pi install git:github.com/akirousnow/pi-session-name@v0.1.0
+```
+
 From a local checkout:
 
 ```sh
