@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2026-11-18
+
+### Changed
+
+- Removed the medium-confidence title selector and all interactive title prompts.
+- Titles are now refreshed only when Jev's rename probability reaches `autoThreshold`.
+- Removed `askThreshold` and `maxPrompts`; lower-confidence decisions are ignored.
+- `agent_settled` now only waits for start-time title work so it can finish before the process settles.
+
 ## [0.2.0] - 2026-11-18
 
 ### Changed

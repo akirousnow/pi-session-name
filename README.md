@@ -6,14 +6,13 @@ Instead of renaming every N turns, it checks at the start of a user turn:
 
 > Has the session's main topic changed enough that the current title is now materially misleading or incomplete?
 
-- **High probability** → generate a new title and apply it immediately, while the agent is still running.
-- **Medium probability** → generate a candidate at the start, then show a selector with the current title, suggested title, and edit option once the agent settles.
-- **Low probability** → do nothing.
+- **At or above `autoThreshold`** → generate a new title and apply it immediately, while the agent is still running.
+- **Below `autoThreshold`** → do nothing.
 - **Manual names always win.** Titles set with `/session-name`, Pi's builtin `/name`, `--name`, or another extension are never auto-refreshed.
 
 It also gives an untitled session its first title from the first user prompt, before the agent starts working. That initial title does not need Jev.
 
-The start-time title work is fire-and-forget and never delays the agent's first token. Selectors are deferred to `agent_settled` so a running agent is never interrupted by a modal dialog.
+The start-time title work is fire-and-forget and never delays the agent's first token. There are no title prompts or selectors; refresh decisions are fully automatic.
 
 ## Requirements
 
@@ -32,7 +31,7 @@ pi install git:github.com/akirousnow/pi-session-name
 Pin the current release:
 
 ```sh
-pi install git:github.com/akirousnow/pi-session-name@v0.2.0
+pi install git:github.com/akirousnow/pi-session-name@v0.3.0
 ```
 
 From a local checkout:
@@ -87,11 +86,9 @@ Settings live under `sessionName` in pi's global or project `settings.json`:
     "enabled": true,
     "classifier": "typesafe/jev-latest",
     "titleModel": "auto",
-    "askThreshold": 0.65,
     "autoThreshold": 0.9,
     "minTurnsBetweenChecks": 2,
     "minTurnsBetweenRenames": 4,
-    "maxPrompts": 3,
     "maxRenames": 8,
     "classifierMessages": 6,
     "titleMessages": 20,
@@ -115,12 +112,10 @@ Settings live under `sessionName` in pi's global or project `settings.json`:
 | `enabled` | `true` | Enables initial naming and Jev-triggered refreshes. |
 | `classifier` | `typesafe/jev-latest` | `provider/modelId`, or `auto` to pick the first available Jev/classifier. |
 | `titleModel` | `auto` | `auto` uses the current session model; otherwise `provider/modelId`. |
-| `askThreshold` | `0.65` | Minimum rename probability before doing anything. |
-| `autoThreshold` | `0.9` | At or above this probability, apply the generated title without asking. Clamped to at least `askThreshold`. |
+| `autoThreshold` | `0.9` | At or above this probability, generate and apply the new title automatically. Lower probabilities do nothing. |
 | `minTurnsBetweenChecks` | `2` | User turns between classifier checks. |
 | `minTurnsBetweenRenames` | `4` | User turns between title changes. |
-| `maxPrompts` | `3` | Maximum medium-confidence selectors per session. Set `0` to disable prompts. |
-| `maxRenames` | `8` | Maximum automatic/manual-approved title changes per session. |
+| `maxRenames` | `8` | Maximum automatic title changes per session. |
 | `classifierMessages` | `6` | Recent user/assistant messages sent to Jev. Tool results are never sent to the classifier. |
 | `titleMessages` | `20` | Recent messages sent to the title model. |
 | `maxStateChars` | `6000` | Hard cap for the Jev state. |
@@ -148,10 +143,10 @@ Project settings override global settings for the keys above.
 ## Behavior details
 
 - Initial naming and high-confidence refreshes run at `before_agent_start`, from the latest user prompt plus recent context.
-- Medium-confidence candidates are generated at the start but the selector is shown at `agent_settled`, when the agent is idle.
 - Start-time work is asynchronous and does not block the agent's first token.
-- `agent_settled` is used instead of `agent_end` for the selector because `agent_end` can still be followed by retries, compaction, or queued continuations.
-- Aborted runs are ignored and clear any queued suggestion.
+- `agent_settled` only waits for start-time title work to finish before the process can settle; it does not open any UI.
+- Runs below `autoThreshold` are ignored; there is no title selector and no prompt.
+- Aborted runs cancel pending title work.
 - A title changed manually while title generation is in flight always wins.
 - If the title model returns an invalid title or the datetime fallback, the old title is kept. The extension never downgrades a good title to a temporary date title.
 - A generated title that is identical to the current title is a no-op.

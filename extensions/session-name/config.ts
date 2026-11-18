@@ -4,11 +4,9 @@ export type SessionNameConfig = {
 	enabled: boolean;
 	classifier: string;
 	titleModel: string;
-	askThreshold: number;
 	autoThreshold: number;
 	minTurnsBetweenChecks: number;
 	minTurnsBetweenRenames: number;
-	maxPrompts: number;
 	maxRenames: number;
 	classifierMessages: number;
 	titleMessages: number;
@@ -27,11 +25,9 @@ export const DEFAULT_CONFIG: SessionNameConfig = {
 	enabled: true,
 	classifier: "typesafe/jev-latest",
 	titleModel: "auto",
-	askThreshold: 0.65,
 	autoThreshold: 0.9,
 	minTurnsBetweenChecks: 2,
 	minTurnsBetweenRenames: 4,
-	maxPrompts: 3,
 	maxRenames: 8,
 	classifierMessages: 6,
 	titleMessages: 20,
@@ -75,10 +71,9 @@ function asThreshold(value: unknown, fallback: number): number {
 }
 
 export function normalizeConfig(raw: Record<string, unknown>): SessionNameConfig {
-	const askThreshold = asThreshold(raw.askThreshold, DEFAULT_CONFIG.askThreshold);
-	const autoThreshold = Math.max(
-		askThreshold,
-		asThreshold(raw.autoThreshold, DEFAULT_CONFIG.autoThreshold),
+	const autoThreshold = asThreshold(
+		raw.autoThreshold,
+		DEFAULT_CONFIG.autoThreshold,
 	);
 	const minTurnsBetweenChecks = asInt(
 		raw.minTurnsBetweenChecks,
@@ -101,11 +96,9 @@ export function normalizeConfig(raw: Record<string, unknown>): SessionNameConfig
 		enabled: asBoolean(raw.enabled, DEFAULT_CONFIG.enabled),
 		classifier: asString(raw.classifier, DEFAULT_CONFIG.classifier),
 		titleModel: asString(raw.titleModel, DEFAULT_CONFIG.titleModel),
-		askThreshold,
 		autoThreshold,
 		minTurnsBetweenChecks,
 		minTurnsBetweenRenames,
-		maxPrompts: asInt(raw.maxPrompts, DEFAULT_CONFIG.maxPrompts),
 		maxRenames: asInt(raw.maxRenames, DEFAULT_CONFIG.maxRenames),
 		classifierMessages: asInt(
 			raw.classifierMessages,

@@ -18,7 +18,7 @@ import {
 	markAutoTitle,
 	markManualTitle,
 } from "./state.js";
-import { generateTitleCandidate, type TitleCandidate } from "./title.js";
+import { generateTitleCandidate } from "./title.js";
 import {
 	buildClassifierState,
 	buildTitleContext,
@@ -26,12 +26,6 @@ import {
 
 const resolveClassifier = createClassifierResolver();
 const TITLE_TIMEOUT_MS = 60_000;
-
-type PendingSuggestion = {
-	candidate: TitleCandidate;
-	currentTitle: string;
-	token: number;
-};
 
 function safeLoadConfig(cwd: string): SessionNameConfig {
 	try {
@@ -44,22 +38,6 @@ function safeLoadConfig(cwd: string): SessionNameConfig {
 function log(config: SessionNameConfig, message: string): void {
 	if (isDebugEnabled(config)) {
 		console.warn(`[session-name] ${message}`);
-	}
-}
-
-function normalized(value: string): string {
-	return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function tokenHash(value: string): string {
-	return normalized(value);
-}
-
-function isUiIdle(ctx: ExtensionContext): boolean {
-	try {
-		return ctx.isIdle();
-	} catch {
-		return false;
 	}
 }
 
@@ -110,49 +88,6 @@ function applyTitle(
 	}
 }
 
-async function askToApply(
-	pi: ExtensionAPI,
-	ctx: ExtensionContext,
-	config: SessionNameConfig,
-	candidate: TitleCandidate,
-	currentTitle: string,
-): Promise<"applied" | "kept" | "skipped"> {
-	if (!hasUi(ctx)) return "skipped";
-	if (!isUiIdle(ctx)) return "skipped";
-	try {
-		const choice = await ctx.ui.select(
-			`Session title\n\nCurrent: ${currentTitle}\nSuggested: ${candidate.title}\n\nUpdate the session title?`,
-			["Use suggested title", "Keep current title", "Edit title…"],
-		);
-		if (choice === "Use suggested title") {
-			if (!isUiIdle(ctx)) return "skipped";
-			return applyTitle(
-				pi,
-				ctx,
-				config,
-				candidate.title,
-				candidate.model,
-				currentTitle,
-			)
-				? "applied"
-				: "skipped";
-		}
-		if (choice === "Edit title…") {
-			const edited = await ctx.ui.input("Edit session title", candidate.title);
-			if (edited === undefined) return "kept";
-			const title = edited.trim();
-			if (!title) return "kept";
-			if (!isUiIdle(ctx)) return "skipped";
-			return applyTitle(pi, ctx, config, title, "manual", currentTitle)
-				? "applied"
-				: "skipped";
-		}
-		return "kept";
-	} catch {
-		return "skipped";
-	}
-}
-
 async function forceRefresh(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
@@ -193,21 +128,17 @@ async function forceRefresh(
 export default function sessionNameExtension(pi: ExtensionAPI): void {
 	let active: AbortController | undefined;
 	let startTask: Promise<void> | undefined;
-	let pendingSuggestion: PendingSuggestion | undefined;
 	let runToken = 0;
 	let userTurns = 0;
 	let turnsSinceTitle = 0;
 	let turnsSinceCheck = 0;
 	let renames = 0;
-	let prompts = 0;
-	let lastDismissed = "";
 
 	function cancelActive(): void {
 		runToken++;
 		active?.abort();
 		active = undefined;
 		startTask = undefined;
-		pendingSuggestion = undefined;
 	}
 
 	pi.on("session_start", () => {
@@ -216,8 +147,6 @@ export default function sessionNameExtension(pi: ExtensionAPI): void {
 		turnsSinceTitle = 0;
 		turnsSinceCheck = 0;
 		renames = 0;
-		prompts = 0;
-		lastDismissed = "";
 	});
 
 	pi.on("session_shutdown", () => {
@@ -256,15 +185,13 @@ export default function sessionNameExtension(pi: ExtensionAPI): void {
 			cancelActive();
 			return;
 		}
-		const token = runToken;
 		const task = startTask;
+		if (!task) return;
 		try {
-			// The start phase is fire-and-forget so it never delays the agent.
-			// Wait for it here only to know whether a medium-confidence
-			// suggestion is ready for the selector.
-			if (task) await task;
-			if (token !== runToken) return;
-			await handleSettled(ctx, token);
+			// The start phase is deliberately fire-and-forget so it never delays
+			// the agent. Await it here only so an application started during the
+			// run finishes before the process can settle or exit.
+			await task;
 		} catch (error) {
 			let config: SessionNameConfig = { ...DEFAULT_CONFIG };
 			try {
@@ -278,7 +205,6 @@ export default function sessionNameExtension(pi: ExtensionAPI): void {
 			);
 		}
 	});
-
 	async function handleStart(
 		ctx: ExtensionContext,
 		token: number,
@@ -353,7 +279,7 @@ export default function sessionNameExtension(pi: ExtensionAPI): void {
 				config,
 				`classifier ${result.model} p(rename)=${result.probability.toFixed(3)}`,
 			);
-			if (result.probability < config.askThreshold) return;
+			if (result.probability < config.autoThreshold) return;
 
 			const context = buildTitleContext(branch, {
 				maxMessages: config.titleMessages,
@@ -377,31 +303,19 @@ export default function sessionNameExtension(pi: ExtensionAPI): void {
 			// A manual rename during generation always wins.
 			if ((pi.getSessionName()?.trim() ?? "") !== current) return;
 
-			if (result.probability >= config.autoThreshold) {
-				const applied = applyTitle(
-					pi,
-					ctx,
-					config,
-					candidate.title,
-					candidate.model,
-					current,
-				);
-				if (applied) {
-					renames++;
-					turnsSinceTitle = 0;
-					turnsSinceCheck = 0;
-					lastDismissed = "";
-				}
-				return;
-			}
-
-			// Do not interrupt a running agent with a modal selector. Carry
-			// the candidate into agent_settled and ask when the agent is idle.
-			pendingSuggestion = { candidate, currentTitle: current, token };
-			log(
+			const applied = applyTitle(
+				pi,
+				ctx,
 				config,
-				`queued medium-confidence title ${JSON.stringify(candidate.title)}`,
+				candidate.title,
+				candidate.model,
+				current,
 			);
+			if (applied) {
+				renames++;
+				turnsSinceTitle = 0;
+				turnsSinceCheck = 0;
+			}
 		} catch (error) {
 			log(
 				config,
@@ -409,46 +323,6 @@ export default function sessionNameExtension(pi: ExtensionAPI): void {
 			);
 		} finally {
 			if (active === controller) active = undefined;
-		}
-	}
-
-	async function handleSettled(
-		ctx: ExtensionContext,
-		token: number,
-	): Promise<void> {
-		if (token !== runToken) return;
-		const config = safeLoadConfig(ctx.cwd);
-		if (!config.enabled) return;
-
-		const suggestion = pendingSuggestion;
-		pendingSuggestion = undefined;
-		if (!suggestion || suggestion.token !== token) return;
-
-		const current = pi.getSessionName()?.trim() ?? "";
-		if (!current || current !== suggestion.currentTitle) return;
-		if (renames >= config.maxRenames) return;
-		if (prompts >= config.maxPrompts) return;
-		if (tokenHash(suggestion.candidate.title) === lastDismissed) return;
-		if (!isUiIdle(ctx)) return;
-
-		const outcome = await askToApply(
-			pi,
-			ctx,
-			config,
-			suggestion.candidate,
-			current,
-		);
-		if (token !== runToken) return;
-		if (outcome === "applied") {
-			renames++;
-			turnsSinceTitle = 0;
-			turnsSinceCheck = 0;
-			lastDismissed = "";
-			prompts++;
-		} else if (outcome === "kept") {
-			prompts++;
-			lastDismissed = tokenHash(suggestion.candidate.title);
-			turnsSinceCheck = 0;
 		}
 	}
 
