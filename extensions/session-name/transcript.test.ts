@@ -75,13 +75,37 @@ assert.equal(state.firstUserMessage, "first user");
 assert.match(state.recentMessages, /latest user/);
 assert.doesNotMatch(state.recentMessages, /file contents/);
 
+const stateWithStartPrompt = buildClassifierState(branch, {
+	currentTitle: "old title",
+	userTurns: 2,
+	turnsSinceTitle: 1,
+	maxMessages: 10,
+	maxChars: 10_000,
+	latestUserMessage: "brand new task",
+});
+assert.match(stateWithStartPrompt.recentMessages, /\[user\] brand new task/);
+assert.equal(stateWithStartPrompt.firstUserMessage, "first user");
+
+const emptyState = buildClassifierState([], {
+	currentTitle: "old title",
+	userTurns: 1,
+	turnsSinceTitle: 1,
+	maxMessages: 10,
+	maxChars: 10_000,
+	latestUserMessage: "first visible prompt",
+});
+assert.equal(emptyState.firstUserMessage, "first visible prompt");
+assert.equal(emptyState.recentMessages, "[user] first visible prompt");
+
 const titleContext = buildTitleContext(branch, {
 	maxMessages: 10,
 	maxChars: 10_000,
 	includeTools: false,
+	latestUserMessage: "brand new task",
 });
 assert.match(titleContext, /First user message:/);
 assert.match(titleContext, /Recent session transcript:/);
+assert.match(titleContext, /Latest user message:\nbrand new task/);
 assert.doesNotMatch(titleContext, /file contents/);
 
 const titleContextWithTools = buildTitleContext(branch, {

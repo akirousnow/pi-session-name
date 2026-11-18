@@ -88,18 +88,31 @@ export function buildClassifierState(
 		turnsSinceTitle: number;
 		maxMessages: number;
 		maxChars: number;
+		latestUserMessage?: string;
 	},
 ): ClassifierState {
+	const latestUser = args.latestUserMessage?.trim();
+	const recent = formatTranscript(branch, {
+		maxMessages: args.maxMessages,
+		maxChars: args.maxChars,
+		includeTools: false,
+	});
+	// before_agent_start may run before the latest user message is persisted.
+	// Include it explicitly when it is not already present in the branch text.
+	const recentMessages =
+		latestUser && !recent.includes(latestUser)
+			? `${recent ? `${recent}\n` : ""}[user] ${clip(latestUser, 1_000)}`
+			: recent;
+	const firstUser =
+		firstUserText(branch) ??
+		(latestUser ? clip(latestUser, 1_000) : undefined);
+
 	return {
 		currentTitle: args.currentTitle,
 		userTurns: args.userTurns,
 		turnsSinceTitle: args.turnsSinceTitle,
-		firstUserMessage: firstUserText(branch),
-		recentMessages: formatTranscript(branch, {
-			maxMessages: args.maxMessages,
-			maxChars: args.maxChars,
-			includeTools: false,
-		}),
+		firstUserMessage: firstUser,
+		recentMessages,
 	};
 }
 
@@ -109,6 +122,7 @@ export function buildTitleContext(
 		maxMessages: number;
 		maxChars: number;
 		includeTools: boolean;
+		latestUserMessage?: string;
 	},
 ): string {
 	const parts: string[] = [];
@@ -120,5 +134,9 @@ export function buildTitleContext(
 		includeTools: args.includeTools,
 	});
 	if (recent) parts.push(`Recent session transcript:\n${recent}`);
+	const latestUser = args.latestUserMessage?.trim();
+	if (latestUser && !recent.includes(latestUser)) {
+		parts.push(`Latest user message:\n${clip(latestUser, 1_000)}`);
+	}
 	return parts.join("\n\n");
 }

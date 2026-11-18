@@ -1,6 +1,6 @@
 {
   "name": "@akirousnow/pi-session-name",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi extension that uses TypeSafe Jev to decide when to refresh session titles.",
   "type": "module",
   "license": "MIT",
@@ -17,6 +17,7 @@
     "extensions/",
     "!extensions/**/*.test.ts",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "package.json"
   ],

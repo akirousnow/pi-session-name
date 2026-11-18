@@ -2,16 +2,18 @@
 
 A small [pi](https://github.com/earendil-works/pi) extension that uses TypeSafe **Jev** as a classifier to decide when an existing session title is stale.
 
-Instead of renaming every N turns, it asks Jev one question after an agent run settles:
+Instead of renaming every N turns, it checks at the start of a user turn:
 
 > Has the session's main topic changed enough that the current title is now materially misleading or incomplete?
 
-- **High probability** → generate a new title and apply it automatically.
-- **Medium probability** → generate a title and show a selector with the current title, the suggested title, and an edit option.
+- **High probability** → generate a new title and apply it immediately, while the agent is still running.
+- **Medium probability** → generate a candidate at the start, then show a selector with the current title, suggested title, and edit option once the agent settles.
 - **Low probability** → do nothing.
 - **Manual names always win.** Titles set with `/session-name`, Pi's builtin `/name`, `--name`, or another extension are never auto-refreshed.
 
-It also gives an untitled session its first title after the first settled run. That initial title does not need Jev.
+It also gives an untitled session its first title from the first user prompt, before the agent starts working. That initial title does not need Jev.
+
+The start-time title work is fire-and-forget and never delays the agent's first token. Selectors are deferred to `agent_settled` so a running agent is never interrupted by a modal dialog.
 
 ## Requirements
 
@@ -30,7 +32,7 @@ pi install git:github.com/akirousnow/pi-session-name
 Pin the current release:
 
 ```sh
-pi install git:github.com/akirousnow/pi-session-name@v0.1.0
+pi install git:github.com/akirousnow/pi-session-name@v0.2.0
 ```
 
 From a local checkout:
@@ -145,13 +147,16 @@ Project settings override global settings for the keys above.
 
 ## Behavior details
 
-- Runs after `agent_settled`, not `agent_end`. `agent_end` can still be followed by retries, compaction, or queued continuations; `agent_settled` is the actual end of a run.
-- Aborted runs are ignored.
+- Initial naming and high-confidence refreshes run at `before_agent_start`, from the latest user prompt plus recent context.
+- Medium-confidence candidates are generated at the start but the selector is shown at `agent_settled`, when the agent is idle.
+- Start-time work is asynchronous and does not block the agent's first token.
+- `agent_settled` is used instead of `agent_end` for the selector because `agent_end` can still be followed by retries, compaction, or queued continuations.
+- Aborted runs are ignored and clear any queued suggestion.
 - A title changed manually while title generation is in flight always wins.
 - If the title model returns an invalid title or the datetime fallback, the old title is kept. The extension never downgrades a good title to a temporary date title.
 - A generated title that is identical to the current title is a no-op.
 - Background refreshes do not write visible "Session renamed" messages into the transcript.
-- Jev receives only the current title, a few recent user/assistant messages, the turn count, and the first user message. It does not receive tool output.
+- Jev receives only the current title, the latest user message, a few recent user/assistant messages, the turn count, and the first user message. It does not receive tool output.
 - The title model receives compact session context, not the entire branch by default.
 
 ## Development
